@@ -9,26 +9,37 @@
 #include "network/endian.hpp"
 
 namespace XLAN {
-    static constexpr const std::size_t ETHERNET_DESTINATION_OFFSET          = 0;
-    static constexpr const std::size_t ETHERNET_SOURCE_OFFSET               = 6;
-    static constexpr const std::size_t ETHERNET_TYPE_OFFSET                 = 12;
-    static constexpr const std::size_t ETHERNET_ETHERNET_SIZE               = 14;
-    static constexpr const std::size_t ETHERNET_IPV4_OFFSET                 = ETHERNET_ETHERNET_SIZE;
+    using namespace Network;
     
-    static constexpr const std::size_t ETHERNET_IPV4_HV_OFFSET              = ETHERNET_IPV4_OFFSET + 0;
-    static constexpr const std::size_t ETHERNET_IPV4_LENGTH_OFFSET          = ETHERNET_IPV4_OFFSET + 2;
-    static constexpr const std::size_t ETHERNET_IPV4_PROTOCOL_OFFSET        = ETHERNET_IPV4_OFFSET + 9;
-    static constexpr const std::size_t ETHERNET_IPV4_SOURCE_IP_OFFSET       = ETHERNET_IPV4_OFFSET + 12;
-    static constexpr const std::size_t ETHERNET_IPV4_DESTINATION_IP_OFFSET  = ETHERNET_IPV4_OFFSET + 16;
-    static constexpr const std::size_t IPV4_MINIMUM_SIZE                    = 20;
-    static constexpr const std::size_t ETHERNET_IPV4_MINIMUM_SIZE           = ETHERNET_IPV4_OFFSET + IPV4_MINIMUM_SIZE;
-
-    static constexpr const std::size_t UDP_SOURCE_PORT_OFFSET               = 0;
-    static constexpr const std::size_t UDP_DESTINATION_PORT_OFFSET          = 2;
-    static constexpr const std::size_t UDP_LENGTH_OFFSET                    = 4;
-    static constexpr const std::size_t UDP_PAYLOAD_OFFSET                   = 8;
-        
-    #define READ_RAW_DATA_INT(offset, T) Network::network_to_host(*reinterpret_cast<const T *>(raw_data + offset))
+    struct EthernetHeader {
+        MACAddress destination_mac;
+        MACAddress source_mac;
+        NetworkEndian<std::uint16_t> type;
+    };
+    static_assert(sizeof(EthernetHeader) == 14);
+    
+    struct IPv4Header : EthernetHeader {
+        NetworkEndian<std::uint8_t> version_ihl;
+        NetworkEndian<std::uint8_t> dscp_ecn;
+        NetworkEndian<std::uint16_t> ipv4_length;
+        NetworkEndian<std::uint16_t> identification;
+        NetworkEndian<std::uint16_t> fragment;
+        NetworkEndian<std::uint8_t> ttl;
+        NetworkEndian<std::uint8_t> protocol;
+        NetworkEndian<std::uint16_t> checksum;
+        NetworkEndian<std::uint32_t> source_ip;
+        NetworkEndian<std::uint32_t> destination_ip;
+    };
+    static_assert(sizeof(IPv4Header) == sizeof(EthernetHeader) + 20);
+    
+    struct UDPHeader {
+        NetworkEndian<std::uint16_t> source_port;
+        NetworkEndian<std::uint16_t> destination_port;
+        NetworkEndian<std::uint16_t> length;
+        NetworkEndian<std::uint16_t> checksum;
+    };
+    static_assert(sizeof(UDPHeader) == 8);
+    
     
     static std::size_t sl_udp_offset(const std::byte *raw_data, std::size_t raw_data_size, const char **error = nullptr) {
         // If error is nullptr, set it to something that is valid. This is just to save us from having to check if it's null so many times.
@@ -38,36 +49,64 @@ namespace XLAN {
         }
         
         // Can it even contain a full IPv4 packet?
-        if(raw_data_size < ETHERNET_IPV4_MINIMUM_SIZE) {
+        if(raw_data_size < sizeof(IPv4Header)) {
             *error = "XLAN::sl_udp_offset(): SL packet too small to be an IPv4 packet";
             return 0;
         };
         
+        const auto &ipv4_header = *reinterpret_cast<const IPv4Header *>(raw_data);
+        
         // Is it IPv4?
-        auto hv = READ_RAW_DATA_INT(ETHERNET_IPV4_HV_OFFSET, std::uint8_t);
-        if(((hv & 0b1111) != 4) || READ_RAW_DATA_INT(ETHERNET_TYPE_OFFSET, std::uint16_t) != 8) {
+        auto hv = static_cast<std::uint8_t>(ipv4_header.version_ihl);
+        if(((hv & 0b1111) != 4) || ipv4_header.type != 8) {
             *error = "XLAN::sl_udp_offset(): SL packet is not IPv4";
             return 0;
         }
         
         // Is it UDP?
-        if(READ_RAW_DATA_INT(ETHERNET_IPV4_PROTOCOL_OFFSET, std::uint8_t) != 0x11) {
+        if(ipv4_header.protocol != 0x11) {
             *error = "XLAN::sl_udp_offset(): SL packet is not UDP";
             return 0;
         }
         
         // Is the ipv4 length correct
-        auto ipv4_packet_size = static_cast<std::size_t>(READ_RAW_DATA_INT(ETHERNET_IPV4_LENGTH_OFFSET, std::uint16_t));
-        if(ipv4_packet_size + ETHERNET_IPV4_OFFSET != raw_data_size) {
+        auto ipv4_packet_size = static_cast<std::size_t>(ipv4_header.ipv4_length);
+        if(ipv4_packet_size + sizeof(EthernetHeader) != raw_data_size) {
             *error = "XLAN::sl_udp_offset(): SL packet ipv4 size is wrong";
             return 0;
         }
         
         // Is the UDP stuff out of bounds?
-        auto udp_offset = static_cast<std::size_t>(hv >> 4) + ETHERNET_IPV4_OFFSET;
+        auto udp_offset = static_cast<std::size_t>(hv >> 4) + sizeof(EthernetHeader);
         if(udp_offset > raw_data_size) {
             *error = "XLAN::sl_udp_offset(): SL packet is too small to be a UDP packet";
             return 0;
+        }
+        
+        // Source IP must ALWAYS be 0.0.0.1
+        if(ipv4_header.source_ip != 0x00000001) {
+            *error = "XLAN::sl_udp_offset(): SL source IP is not 0.0.0.1";
+            return 0;
+        }
+        
+        // Source address must not be broadcast
+        if(ipv4_header.source_mac.is_broadcast()) {
+            *error = "XLAN::sl_udp_offset(): SL source MAC address is broadcast";
+            return 0;
+        }
+        
+        // Destination IP must be 0.0.0.1 if non-broadcast. Otherwise it must be 255.255.255.255.
+        if(ipv4_header.destination_mac.is_broadcast()) {
+            if(ipv4_header.destination_ip != 0xFFFFFFFF) {
+                *error = "XLAN::sl_udp_offset(): SL destination IP is not 255.255.255.255 but is broadcast";
+                return 0;
+            }
+        }
+        else {
+            if(ipv4_header.destination_ip != 0x00000001) {
+                *error = "XLAN::sl_udp_offset(): SL destination IP is not 0.0.0.1";
+                return 0;
+            }
         }
         
         return udp_offset;
@@ -79,15 +118,15 @@ namespace XLAN {
     }
 
     MACAddress SystemLinkPacket::get_source_mac_address() const noexcept {
-        return MACAddress(reinterpret_cast<const std::uint8_t *>(this->raw_data.data() + ETHERNET_SOURCE_OFFSET));
+        return MACAddress(reinterpret_cast<const EthernetHeader *>(this->raw_data.data())->source_mac);
     }
 
     MACAddress SystemLinkPacket::get_recipient_mac_address() const noexcept {
-        return MACAddress(reinterpret_cast<const std::uint8_t *>(this->raw_data.data() + ETHERNET_DESTINATION_OFFSET));
+        return MACAddress(reinterpret_cast<const EthernetHeader *>(this->raw_data.data())->destination_mac);
     }
 
     std::vector<std::byte> SystemLinkPacket::get_udp_payload() const {
-        return std::vector<std::byte>(this->raw_data.begin() + sl_udp_offset(this->raw_data.data(), this->raw_data.size()) + UDP_PAYLOAD_OFFSET, this->raw_data.end());
+        return std::vector<std::byte>(this->raw_data.begin() + sl_udp_offset(this->raw_data.data(), this->raw_data.size()) + sizeof(UDPHeader), this->raw_data.end());
     }
     
     bool SystemLinkPacket::validate_raw_system_link_packet(const std::byte *raw_data, std::size_t raw_size, const char **error) {
@@ -103,50 +142,20 @@ namespace XLAN {
             return false;
         }
         
+        const auto &udp_header = *reinterpret_cast<const UDPHeader *>(raw_data + udp_offset);
+        
         // Are the ports correct?
-        auto source_port = READ_RAW_DATA_INT(udp_offset + UDP_SOURCE_PORT_OFFSET, std::uint16_t);
-        auto destination_port = READ_RAW_DATA_INT(udp_offset + UDP_DESTINATION_PORT_OFFSET, std::uint16_t);
-        if(source_port != 3074) {
+        if(udp_header.source_port != 3074) {
             *error = "XLAN::SystemLinkPacket(): SL source port is not 3074";
             return false;
         }
-        if(destination_port != 3074) {
+        if(udp_header.destination_port != 3074) {
             *error = "XLAN::SystemLinkPacket(): SL destination port is not 3074";
             return false;
         }
         
-        // Are the IPs correct?
-        auto source_ip = READ_RAW_DATA_INT(ETHERNET_IPV4_SOURCE_IP_OFFSET, std::uint32_t);
-        auto destination_ip = READ_RAW_DATA_INT(ETHERNET_IPV4_DESTINATION_IP_OFFSET, std::uint32_t);
-        
-        // Source IP must ALWAYS be 0.0.0.1
-        if(source_ip != 0x00000001) {
-            *error = "XLAN::SystemLinkPacket(): SL source IP is not 0.0.0.1";
-            return false;
-        }
-        
-        // Source address must not be broadcast
-        if(MACAddress(reinterpret_cast<const std::uint8_t *>(raw_data + ETHERNET_SOURCE_OFFSET)).is_broadcast()) {
-            *error = "XLAN::SystemLinkPacket(): SL source MAC address is broadcast";
-            return false;
-        }
-        
-        // Destination IP must be 0.0.0.1 if non-broadcast. Otherwise it must be 255.255.255.255.
-        if(MACAddress(reinterpret_cast<const std::uint8_t *>(raw_data + ETHERNET_DESTINATION_OFFSET)).is_broadcast()) {
-            if(destination_ip != 0xFFFFFFFF) {
-                *error = "XLAN::SystemLinkPacket(): SL destination IP is not 255.255.255.255 but is broadcast";
-                return false;
-            }
-        }
-        else {
-            if(destination_ip != 0x00000001) {
-                *error = "XLAN::SystemLinkPacket(): SL destination IP is not 0.0.0.1";
-                return false;
-            }
-        }
-        
         // Is the size right?
-        if(READ_RAW_DATA_INT(udp_offset + UDP_LENGTH_OFFSET, std::uint16_t) + udp_offset != raw_size) {
+        if(udp_header.length + udp_offset != raw_size) {
             *error = "XLAN::SystemLinkPacket(): SL UDP payload size is wrong";
             return false;
         }
