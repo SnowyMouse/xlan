@@ -18,10 +18,10 @@ namespace XLAN::Network {
     class UDPSocket {
     public:
         /**
-         * Listen for packets
+         * Listen for packets and the corresponding addresses they originated from
          * @return packet(s) received
          */
-        std::vector<std::vector<std::byte>> read_packets();
+        std::vector<std::pair<std::vector<std::byte>, std::shared_ptr<SocketAddress>>> read_packets();
 
         /**
          * Send a packet to the specified address
