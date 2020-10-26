@@ -50,32 +50,11 @@ namespace XLAN::Network {
     void TCPStream::send_bytes(const std::byte *data, std::size_t data_size) {
         #ifdef USE_BSD_SOCKETS
 
-        struct timeval tv = {};
-
-        // Set our FD to our stream
-        fd_set set;
-        FD_ZERO(&set);
-        FD_SET(*this->socket_ref->s, &set);
-
-        // Check if we can send
-        int sv = select(1, nullptr, &set, nullptr, &tv);
-        if(sv == -1) {
+        int sent = send(*this->socket_ref->s, data, data_size, 0);
+        if(sent == -1) {
             throw std::exception(); // TODO: put a meaningful error here
         }
-
-        // We can
-        else if(sv) {
-            int sent = send(*this->socket_ref->s, data, data_size, 0);
-            if(sent == -1) {
-                throw std::exception(); // TODO: put a meaningful error here
-            }
-            return;
-        }
-
-        // We don't
-        else {
-            throw std::exception(); // TODO: put a meaningful error here
-        }
+        return;
 
         #else
         static_assert(false);

@@ -16,7 +16,7 @@ namespace XLAN::Network {
     class TCPListener;
 
     /**
-     * This is a non-blocking TCP stream which is used for sending/receiving a stream of bytes
+     * TCP stream which is used for sending/receiving a stream of bytes in the order they were sent
      */
     class TCPStream {
         friend class TCPListener;

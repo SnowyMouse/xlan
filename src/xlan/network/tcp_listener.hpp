@@ -13,7 +13,7 @@ namespace XLAN::Network {
     class TCPStream;
 
     /**
-     * This is a non-blocking TCP listener which is used for listening for clients
+     * TCP listener which is used for listening for clients
      */
     class TCPListener {
     public:

@@ -13,7 +13,7 @@ namespace XLAN {
 
 namespace XLAN::Network {
     /**
-     * This is a non-blocking UDP socket
+     * UDP socket for sending discrete packets without regard to order or loss
      */
     class UDPSocket {
     public:
