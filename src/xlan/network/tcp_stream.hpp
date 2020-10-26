@@ -23,9 +23,9 @@ namespace XLAN::Network {
     public:
         /**
          * Listen for bytes
-         * @return bytes if received
+         * @return bytes received
          */
-        std::optional<std::vector<std::byte>> read_bytes();
+        std::vector<std::byte> read_bytes();
 
         /**
          * Send bytes
