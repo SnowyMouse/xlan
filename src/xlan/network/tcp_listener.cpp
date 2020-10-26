@@ -14,16 +14,19 @@ namespace XLAN::Network {
         SocketAddress address;
         TCPStream::OpaqueTCPStream opaque_stream;
 
+        // Attempt to accept a stream
         address.address_data = std::make_unique<SocketAddress::OpaqueSocketAddress>();
         int sv = accept(*this->listener_ref->s, reinterpret_cast<sockaddr *>(&address.address_data->sockaddr), &address.address_data->address_length);
         if(sv == -1) {
+            // If our error is this, we don't need to exception. just return nullopt
+            if(errno == EWOULDBLOCK) {
+                return std::nullopt;
+            }
+            // Otherwise, uh... yeah. Bad things happened lol
             throw std::exception(); // TODO: put a meaningful error here
         }
 
-        if(errno == EWOULDBLOCK) {
-            return std::nullopt;
-        }
-
+        // Create our stream thingy
         auto stream = std::unique_ptr<TCPStream>(new TCPStream);
         stream->bound_address = std::make_unique<SocketAddress>(address);
         stream->socket_ref = std::make_unique<TCPStream::OpaqueTCPStream>();
