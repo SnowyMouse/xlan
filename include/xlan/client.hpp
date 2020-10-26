@@ -5,13 +5,19 @@
 
 #include <optional>
 #include <mutex>
+#include <vector>
+#include <memory>
 
-#include "socket.hpp"
 #include "clock.hpp"
 #include "client_id.hpp"
 
 namespace XLAN {
     class Server;
+    class SocketAddress;
+
+    namespace Network {
+        class TCPStream;
+    }
 
     /**
      * A Client is used to represent a peer.
@@ -85,6 +91,9 @@ namespace XLAN {
     private:
         static const std::size_t MAX_PING = 5;
 
+        /** Buffer received from the client */
+        std::vector<std::byte> recv_buffer;
+
         /** Last moment the client was ping */
         Clock::time_point last_ping;
 
@@ -97,14 +106,14 @@ namespace XLAN {
         /** Number of times the client was pinged, up to the maximum number of pings stored */
         std::size_t ping_count = 0;
 
-        /** Socket for communicating with the client via TCP */
-        std::optional<Socket> socket_tcp;
+        /** Stream for communicating with the client via TCP if host */
+        std::unique_ptr<Network::TCPStream> stream_tcp;
 
         /** Socket address (TCP) */
-        std::optional<SocketAddress> socket_address_tcp;
+        std::unique_ptr<SocketAddress> socket_address_tcp;
 
         /** Socket address (UDP) */
-        std::optional<SocketAddress> socket_address_udp;
+        std::unique_ptr<SocketAddress> socket_address_udp;
 
         /** Server reference */
         Server &server;

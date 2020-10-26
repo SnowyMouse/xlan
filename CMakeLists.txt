@@ -10,7 +10,13 @@ project(XLAN
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_library(xlan
+add_library(xlan SHARED
+    src/xlan/network/socket_address.cpp
+    src/xlan/network/tcp_listener.cpp
+    src/xlan/network/tcp_packet.cpp
+    src/xlan/network/tcp_stream.cpp
+    src/xlan/network/udp_socket.cpp
+
     src/xlan/client.cpp
     src/xlan/mac_address.cpp
     src/xlan/server.cpp

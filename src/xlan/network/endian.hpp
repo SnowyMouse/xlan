@@ -3,8 +3,13 @@
 #ifndef XLAN__NETWORK__ENDIAN_HPP
 #define XLAN__NETWORK__ENDIAN_HPP
 
+#include <cstddef>
+#include <bit>
+
 namespace XLAN::Network {
     template <typename T> constexpr T swap_endianness(T value) {
+        static_assert(std::is_integral<T>::value);
+        
         // If the size of the value is one byte, pass as-is
         if(sizeof(value) == 1) {
             return value;
@@ -20,12 +25,8 @@ namespace XLAN::Network {
         }
     }
     
-    static_assert(swap_endianness(static_cast<std::int32_t>(0x12345678)) == 0x78563412);
-    
     template <typename T> struct NetworkEndian {
         std::byte data[sizeof(T)];
-        
-        static_assert(std::is_integral<T>::value);
         
         /** Get the stored value, automatically converting endianness if needed */
         operator T() const noexcept {
@@ -47,6 +48,20 @@ namespace XLAN::Network {
             }
             return what;
         }
+        
+        /** Set the stored value, automatically converting endianness if needed */
+        NetworkEndian(const T &what) {
+            if(std::endian::native == std::endian::big) {
+                *reinterpret_cast<T *>(data) = what;
+            }
+            else {
+                *reinterpret_cast<T *>(data) = swap_endianness(what);
+            }
+        }
+        
+        NetworkEndian<T>() = default;
+        NetworkEndian(const NetworkEndian<T> &) = default;
+        NetworkEndian(NetworkEndian<T> &&) = default;
     };
 }
 

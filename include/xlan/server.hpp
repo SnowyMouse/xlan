@@ -7,12 +7,19 @@
 #include <optional>
 #include <string>
 #include <variant>
-
-#include "socket.hpp"
+#include <vector>
+#include <memory>
 
 namespace XLAN {
     class Client;
     class SystemLinkPacket;
+    class SocketAddress;
+
+    namespace Network {
+        class TCPStream;
+        class TCPListener;
+        class UDPSocket;
+    }
 
     /**
      * A Server is used to facilitate communication between clients (peers). A Server instance can be either represent
@@ -45,7 +52,7 @@ namespace XLAN {
          * @param tcp_bind TCP address to bind to
          * @param udp_bind UDP address to bind to
          */
-        void host(const SocketAddress tcp_bind, const SocketAddress udp_bind);
+        void host(const SocketAddress &tcp_bind, const SocketAddress &udp_bind);
 
         /**
          * Connect to the given
@@ -57,10 +64,10 @@ namespace XLAN {
          * @param password password to use; passing null is equivalent to passing an empty string in this case
          */
         void connect(
-            const SocketAddress tcp_host,
-            const SocketAddress udp_host,
-            const std::optional<SocketAddress> tcp_bind,
-            const std::optional<SocketAddress> udp_bind,
+            const SocketAddress &tcp_host,
+            const SocketAddress &udp_host,
+            const std::optional<SocketAddress> &tcp_bind,
+            const std::optional<SocketAddress> &udp_bind,
             const char *name = nullptr,
             const char *password = nullptr
         );
@@ -68,7 +75,7 @@ namespace XLAN {
         /**
          * Get the name of the server. This pointer will be invalidated if set_name() or loop() is called or if the
          * Server instance is destroyed.
-         * 
+         *
          * @return name of the server
          */
         const char *get_name() const noexcept { return this->name.c_str(); };
@@ -77,7 +84,7 @@ namespace XLAN {
          * Set the name of the server.
          *
          * If the user doesn't have permission, then Server::error_callback() will be called.
-         * 
+         *
          * @param new_name new server name
          */
         void set_name(const char *new_name);
@@ -90,7 +97,7 @@ namespace XLAN {
         /**
          * Destroy a server
          */
-        virtual ~Server() = default;
+        virtual ~Server();
 
     protected:
         /**
@@ -125,11 +132,14 @@ namespace XLAN {
         /** Clients in server */
         std::list<ClientReference> clients;
 
-        /** Socket for transmitting TCP packets */
-        Socket tcp;
+        /** Socket for transmitting TCP data if not host */
+        std::unique_ptr<Network::TCPStream> tcp_stream;
+
+        /** Socket for listening for TCP connections if host */
+        std::unique_ptr<Network::TCPListener> tcp_listener;
 
         /** Socket for transmitting UDP packets */
-        Socket udp;
+        std::unique_ptr<Network::UDPSocket> udp;
 
         /** Are we a client instance? */
         bool client;
@@ -142,6 +152,9 @@ namespace XLAN {
 
         /** Password of the server */
         std::string password;
+
+        /** Buffer received from the client */
+        std::vector<std::byte> recv_buffer;
     };
 }
 
