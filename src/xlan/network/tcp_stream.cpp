@@ -102,9 +102,7 @@ namespace XLAN::Network {
 
         SocketAddress a;
         auto &ai = *a.address_data;
-        socklen_t ai_l;
-        getsockname(*this->socket_ref->s, reinterpret_cast<sockaddr *>(&ai.sockaddr), &ai_l);
-        ai.address_length = ai_l;
+        getsockname(*this->socket_ref->s, reinterpret_cast<sockaddr *>(&ai.sockaddr), &ai.address_length);
         this->bound_address = std::make_unique<SocketAddress>(a);
 
         #else
