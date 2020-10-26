@@ -27,12 +27,16 @@ namespace XLAN::Network {
 
         // If we're using BSD sockets, we need to retrieve the name information from the socket
         #ifdef USE_BSD_SOCKETS
+
         SocketAddress a;
         auto &ai = *a.address_data;
         socklen_t ai_l;
         getsockname(*this->socket_ref->s, reinterpret_cast<sockaddr *>(&ai.sockaddr), &ai_l);
         ai.address_length = ai_l;
         this->bound_address = std::make_unique<SocketAddress>(a);
+
+        #else
+        static_assert(false);
         #endif
     }
 

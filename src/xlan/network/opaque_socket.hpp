@@ -141,6 +141,8 @@ namespace XLAN::Network {
         }
     };
 }
+#else
+static_assert(false);
 #endif
 
 #endif

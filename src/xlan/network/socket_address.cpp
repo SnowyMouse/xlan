@@ -65,4 +65,6 @@ namespace XLAN {
     }
 }
 
+#else
+static_assert(false);
 #endif
