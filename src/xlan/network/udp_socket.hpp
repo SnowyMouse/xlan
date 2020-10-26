@@ -19,9 +19,9 @@ namespace XLAN::Network {
     public:
         /**
          * Listen for packets
-         * @return packets if found
+         * @return packet(s) received
          */
-        std::optional<std::vector<std::vector<std::byte>>> read_packets();
+        std::vector<std::vector<std::byte>> read_packets();
 
         /**
          * Send a packet to the specified address

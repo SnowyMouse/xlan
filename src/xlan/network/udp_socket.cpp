@@ -9,7 +9,7 @@
 #include "opaque_socket.hpp"
 
 namespace XLAN::Network {
-    std::optional<std::vector<std::vector<std::byte>>> UDPSocket::read_packets() {
+    std::vector<std::vector<std::byte>> UDPSocket::read_packets() {
         std::terminate(); // TODO
     }
 
