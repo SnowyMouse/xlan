@@ -4,13 +4,17 @@
 #define XLAN__NETWORK__OPAQUE_SOCKET_HPP
 
 #include <xlan/network/socket_address.hpp>
-#include <sys/socket.h>
 
 #include "tcp_listener.hpp"
 #include "tcp_stream.hpp"
 #include "udp_socket.hpp"
 
 #ifdef __linux__
+
+#include <sys/socket.h>
+#include <unistd.h>
+#include <fcntl.h>
+
 #define USE_BSD_SOCKETS
 #endif
 
@@ -44,6 +48,9 @@ namespace XLAN::Network {
             setsockopt(sv, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
 
             #endif
+
+            // Nonblocking
+            fcntl(sv, F_SETFL, O_NONBLOCK);
 
             // Bind
             int bv = bind(sv, reinterpret_cast<const sockaddr *>(&addr_data.sockaddr), addr_data.address_length);
@@ -104,6 +111,8 @@ namespace XLAN::Network {
 
     struct TCPStream::OpaqueTCPStream {
         std::optional<int> s;
+
+        OpaqueTCPStream() {}
 
         OpaqueTCPStream(const SocketAddress &address_to, const std::optional<SocketAddress> &bind_to = std::nullopt) {
             auto &to_addr_data = address_to.get_address_data();
