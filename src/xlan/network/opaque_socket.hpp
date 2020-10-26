@@ -20,7 +20,7 @@
 namespace XLAN {
     struct SocketAddress::OpaqueSocketAddress {
         sockaddr_storage sockaddr = {};
-        std::size_t address_length = 0;
+        socklen_t address_length = 0;
     };
 }
 
