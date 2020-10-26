@@ -17,7 +17,6 @@ namespace XLAN::Network {
         // Basically, loop until we stop receiving things
         while(true) {
             struct timeval tv = {};
-            tv.tv_usec = 5;
 
             // Set our FD to our socket
             fd_set set;
@@ -58,7 +57,6 @@ namespace XLAN::Network {
         #ifdef USE_BSD_SOCKETS
 
         struct timeval tv = {};
-        tv.tv_usec = 5;
 
         // Set our FD to our socket
         fd_set set;
